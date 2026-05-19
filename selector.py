@@ -1,3 +1,4 @@
+from crewai import LLM
 from firebase_admin import credentials, firestore
 import firebase_admin
 import os
@@ -5,24 +6,58 @@ import json
 import math
 from dotenv import load_dotenv
 
-# ── ENV ──────────────────────────────────────────────────
+# ── Firebase ─────────────────────────────────────────────
+# ── Firebase ─────────────────────────────────────────────
 load_dotenv()
 
-# ── Firebase ─────────────────────────────────────────────
+firebase_env = os.getenv("FIREBASE_CREDENTIALS")
+
+if not firebase_env:
+    raise ValueError("FIREBASE_CREDENTIALS is missing")
+
+firebase_dict = json.loads(firebase_env)
+
+cred = credentials.Certificate(firebase_dict)
+
 if not firebase_admin._apps:
-    firebase_env = os.getenv("FIREBASE_CREDENTIALS")
-    if firebase_env:
-        # Vercel: من environment variable
-        firebase_dict = json.loads(firebase_env)
-        cred = credentials.Certificate(firebase_dict)
-    else:
-        # Local: من ملف JSON
-        cred = credentials.Certificate(
-            "transport-assistant-2c59e-firebase-adminsdk-fbsvc-27107e88f9.json"
-        )
     firebase_admin.initialize_app(cred)
 
 db = firestore.client()
+
+# ── API KEYS ROTATION ───────────────────────────────────
+api_keys = [
+    os.getenv("GROQ_API_line_1"),
+    os.getenv("GROQ_API_line_2"),
+    os.getenv("GROQ_API_line_3"),
+    os.getenv("GROQ_API_line_4"),
+]
+
+# حذف المفاتيح الفارغة
+api_keys = [k for k in api_keys if k]
+
+current_key_index = 0
+
+
+def get_next_key():
+    global current_key_index
+
+    key = api_keys[current_key_index]
+
+    current_key_index = (
+        current_key_index + 1
+    ) % len(api_keys)
+
+    return key
+
+
+# ── إنشاء LLM ───────────────────────────────────────────
+def create_llm():
+    return LLM(
+        model="groq/meta-llama/llama-4-scout-17b-16e-instruct",
+        api_key=get_next_key(),
+        temperature=0.3,
+        max_tokens=150,
+    )
 
 
 # ── حساب المسافة ────────────────────────────────────────
@@ -84,62 +119,75 @@ def rank_lines(
     comfort_pref
 ):
 
+    # الأوزان
     weights = {
         "low": 1,
         "medium": 2,
         "high": 3
     }
 
-    cost_weight    = weights.get(cost_pref, 1)
-    time_weight    = weights.get(time_pref, 1)
+    cost_weight = weights.get(cost_pref, 1)
+
+    time_weight = weights.get(time_pref, 1)
+
     comfort_weight = weights.get(comfort_pref, 1)
 
+    # بيانات الخطوط
     transport_scores = {
         "bus": {
             "cost_rank": 1,
             "time_rank": 4,
             "comfort_rank": 4
         },
+
         "L12": {
             "cost_rank": 1,
             "time_rank": 4,
             "comfort_rank": 4
         },
+
         "L36": {
             "cost_rank": 1,
             "time_rank": 4,
             "comfort_rank": 4
         },
+
         "L58": {
             "cost_rank": 1,
             "time_rank": 4,
             "comfort_rank": 4
         },
+
         "L89A": {
             "cost_rank": 1,
             "time_rank": 4,
             "comfort_rank": 4
         },
+
         "L608A": {
             "cost_rank": 1,
             "time_rank": 4,
             "comfort_rank": 4
         },
+
         "tram": {
             "cost_rank": 2,
             "time_rank": 3,
             "comfort_rank": 3
         },
+
         "metro": {
             "cost_rank": 3,
             "time_rank": 2,
             "comfort_rank": 2
         },
+
         "teleferik": {
             "cost_rank": 2,
             "time_rank": 3,
             "comfort_rank": 3
         },
+
         "taxi": {
             "cost_rank": 4,
             "time_rank": 1,
@@ -157,9 +205,11 @@ def rank_lines(
         data = transport_scores[line]
 
         score = (
-            cost_weight    * data["cost_rank"]
-            + time_weight  * data["time_rank"]
-            + comfort_weight * data["comfort_rank"]
+            cost_weight * data["cost_rank"]
+            +
+            time_weight * data["time_rank"]
+            +
+            comfort_weight * data["comfort_rank"]
         )
 
         ranked.append({
@@ -169,7 +219,9 @@ def rank_lines(
 
     ranked.sort(key=lambda x: x["score"])
 
-    return {"routes": ranked}
+    return {
+        "routes": ranked
+    }
 
 
 # ── MAIN FUNCTION ───────────────────────────────────────
@@ -183,7 +235,7 @@ def run_selector(inputs: dict):
         threshold=0.05
     )
 
-    print("Filtered lines:", filtered)
+    print("✅ Filtered lines:", filtered)
 
     if not filtered:
         return {

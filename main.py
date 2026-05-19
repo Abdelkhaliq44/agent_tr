@@ -333,15 +333,23 @@ import firebase_admin
 import requests
 
 # ─── Firebase ───────────────────────────────────────────────
-cred = credentials.Certificate(
-    "transport-assistant-2c59e-firebase-adminsdk-fbsvc-27107e88f9.json"
-)
-firebase_admin.initialize_app(cred)
-db = firestore.client()
-
+# ── Firebase ─────────────────────────────────────────────
+load_dotenv()
 output_dir = "./ai-agent-output"
 os.makedirs(output_dir, exist_ok=True)
-load_dotenv()
+firebase_env = os.getenv("FIREBASE_CREDENTIALS")
+
+if not firebase_env:
+    raise ValueError("FIREBASE_CREDENTIALS is missing")
+
+firebase_dict = json.loads(firebase_env)
+
+cred = credentials.Certificate(firebase_dict)
+
+if not firebase_admin._apps:
+    firebase_admin.initialize_app(cred)
+
+db = firestore.client()
 
 agentops.init(api_key=os.getenv("agentops_api_key"), skip_auto_end_session=True)
 
