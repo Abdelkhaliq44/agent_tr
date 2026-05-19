@@ -1,0 +1,50 @@
+from flask import Flask, request, jsonify
+from main import run_ai
+from selector import run_selector
+import traceback
+
+app = Flask(__name__)
+
+
+@app.route('/route', methods=['POST'])
+def route():
+    try:
+        data = request.get_json()
+
+        result = run_ai({
+            'lat1': data['lat1'],
+            'long1': data['long1'],
+            'lat2': data['lat2'],
+            'long2': data['long2'],
+            'document': data['document'],
+        })
+
+        return jsonify({"status": "success", "data": result})
+
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "trace": traceback.format_exc()
+        }), 500
+
+
+@app.route('/select-lines', methods=['POST'])
+def select():
+    try:
+        data = request.get_json()
+
+        result = run_selector({
+            'lat1': data['lat1'],
+            'long1': data['long1'],
+            'lat2': data['lat2'],
+            'long2': data['long2'],
+            'Cost': data['Cost'],
+            'time': data['time'],
+            'Comfort': data['Comfort'],
+        })
+
+        return jsonify({"status": "success", "data": result})
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
